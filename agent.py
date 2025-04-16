@@ -30,8 +30,8 @@ class Document(BaseModel):
     document_text: str
     document_generated: bool
     document_name: str
-    next_action: NextAction
-    direct_question: DIRECT_QUESTION
+    #    next_action: NextAction
+    #    direct_question: DIRECT_QUESTION
 
     def __getitem__(self, item):
         return getattr(self, item)
@@ -56,7 +56,13 @@ def get_files_in_directory(directory):
 class Agent:
     output_file = ""
 
-    def __init__(self, api_key=None, model="gemini-2.0-flash"):
+    def __init__(
+        self,
+        project_context="",
+        project_docs="",
+        api_key=None,
+        model="gemini-2.0-flash",
+    ):
         """
         Initialize the Agent
 
@@ -75,14 +81,14 @@ class Agent:
 
         self.client = genai.Client(api_key=api_key)
         self.model = model
-        self.project_docs = self.get_project_context()
-        self.project_context = self.read_context_doc()
+        self.project_docs = project_docs
+        self.project_context = project_context
 
         self.context = {}
         self.system_prompt = ""
 
     def get_response(self, prompt="It's your turn to speak"):
-        self.project_context = self.read_context_doc()
+        # self.project_context = self.read_context_doc()
         prompt = self.project_context + self.project_docs + prompt
 
         response = self.client.models.generate_content(
@@ -96,8 +102,9 @@ class Agent:
         )
 
         result = json.loads(response.text)
-        self.update_context({"agent": result})
-        return self.process_reply(result)
+        # self.update_context({"agent": result})
+        # return self.process_reply(result)
+        return result
 
     def question_user(self):
         user_response = input("user: ")

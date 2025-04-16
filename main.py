@@ -2,6 +2,7 @@ from pprint import pprint
 import json
 from datetime import datetime
 from fastapi import FastAPI, Depends
+from fastapi.middleware.cors import CORSMiddleware
 from sqlmodel import Field, Session, SQLModel, create_engine, select
 from agent import Agent
 from prompts import prompts
@@ -83,6 +84,19 @@ def get_session():
 
 app = FastAPI()
 
+origins = [
+    "http://localhost",
+    "http://localhost:5173",
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 seed_agents()
 
 
@@ -108,8 +122,25 @@ async def create_project(project: Project, session: Session = Depends(get_sessio
 @app.get("/agents")
 async def get_agents(session: Session = Depends(get_session)):
     agents = session.exec(select(DBAgent)).all()
-    pprint(agents)
     return agents
+
+
+@app.get("/projects/{project_id}/documents")
+async def get_project_documents(
+    project_id: int, session: Session = Depends(get_session)
+):
+    documents = session.exec(
+        select(Document).order_by(Document.created_at.desc())
+    ).all()
+    return documents
+
+
+@app.delete("/documents/{document_id}")
+async def delete_document(document_id: int, session: Session = Depends(get_session)):
+    document = session.exec(select(Document).where(Document.id == document_id)).one()
+    session.delete(document)
+    session.commit()
+    return {"message": "Document deleted"}
 
 
 @app.get("/messages")
@@ -124,6 +155,16 @@ async def create_message(message: ChatMessage, session: Session = Depends(get_se
     session.commit()
     session.refresh(message)
     return message
+
+
+@app.delete("/messages/{message_id}")
+async def delete_message(message_id: int, session: Session = Depends(get_session)):
+    message = session.exec(
+        select(ChatMessage).where(ChatMessage.id == message_id)
+    ).one()
+    session.delete(message)
+    session.commit()
+    return {"message": "Message deleted"}
 
 
 @app.post("/ai")
@@ -171,6 +212,16 @@ async def create_ai_message(
         message=ai_response["text"],
         project_id=ai_request.project_id,
     )
+
+    if ai_response["document_generated"]:
+        document = Document(
+            name=ai_response["document_name"],
+            text=ai_response["document_text"],
+            project_id=ai_request.project_id,
+        )
+        session.add(document)
+        session.commit()
+        session.refresh(document)
 
     session.add(message)
     session.commit()
